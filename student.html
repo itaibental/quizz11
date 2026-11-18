@@ -8,15 +8,17 @@
 .bar{height:6px;background:#26305a;border-radius:9px;overflow:hidden;margin:6px 0 4px}.bar i{display:block;height:100%;background:linear-gradient(90deg,#4cc9f0,#b388ff);transition:width .3s}
 .cnt{font-size:13px;color:#9aa6d6}h1{font-size:22px;line-height:1.4;margin:22px 0}
 button.opt{display:block;width:100%;text-align:right;font:inherit;font-size:17px;color:#fff;background:#1b2552;border:2px solid #2d3a74;border-radius:14px;padding:15px;margin:10px 0;cursor:pointer}
-button.opt:active,button.opt.sel{background:#3b4bb0;border-color:#8fa2ff}
+button.opt.sel{background:#3b4bb0;border-color:#8fa2ff}
 .rates{display:flex;gap:8px;direction:ltr}.rates button{flex:1;font:inherit;font-size:26px;font-weight:700;color:#fff;background:#1b2552;border:2px solid #2d3a74;border-radius:14px;padding:18px 0;cursor:pointer}
-.rates button.sel,.rates button:active{background:#3b4bb0;border-color:#8fa2ff}
+.rates button.sel{background:#3b4bb0;border-color:#8fa2ff}
 .lbl{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#9aa6d6;margin-top:10px}.lbl span{max-width:48%}
 textarea{width:100%;font:inherit;font-size:18px;padding:14px;border-radius:14px;border:2px solid #2d3a74;background:#1b2552;color:#fff;resize:none}
-.go{margin-top:12px;width:100%;font:inherit;font-size:18px;font-weight:700;padding:14px;border:0;border-radius:14px;background:#4cc9f0;color:#06122e;cursor:pointer}
-.skip{background:none;color:#9aa6d6;font-weight:400;font-size:15px}
+.nav{display:flex;gap:10px;margin-top:22px}
+.nav button{flex:1;font:inherit;font-size:18px;font-weight:700;padding:14px;border:0;border-radius:14px;cursor:pointer}
+.nav .next{background:#4cc9f0;color:#06122e;flex:2}.nav .prev{background:#1b2552;color:#fff;border:2px solid #2d3a74}
+.nav button:disabled{opacity:.35;cursor:not-allowed}
+.st{min-height:20px;font-size:13px;margin-top:10px;color:#9aa6d6}.st.bad{color:#ff8a9b}
 .done{text-align:center;margin-top:80px}.done b{font-size:60px;display:block}
-.err{background:#6b1d2b;padding:10px;border-radius:10px;margin-top:12px;display:none}
 </style></head><body><div class="wrap" id="app"></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -24,43 +26,53 @@ textarea{width:100%;font:inherit;font-size:18px;padding:14px;border-radius:14px;
 <script>
 let uid = localStorage.getItem("pollUid_" + SESSION);
 if (!uid) { uid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/[.#$\[\]\/]/g, ""); localStorage.setItem("pollUid_" + SESSION, uid); }
-const doneKey = "pollDone_" + SESSION;
-let done = JSON.parse(localStorage.getItem(doneKey) || "{}");
-let i = QUESTIONS.findIndex((_, k) => !(k in done)); if (i < 0) i = QUESTIONS.length;
+const ansKey = "pollAns_" + SESSION;
+let ans = JSON.parse(localStorage.getItem(ansKey) || "{}");
+let i = 0, finished = localStorage.getItem("pollFinished_" + SESSION) === "1";
 const app = document.getElementById("app");
 const el = (t, p = {}, ...c) => { const e = document.createElement(t); Object.assign(e, p); c.forEach(x => e.append(x)); return e; };
+const hasAns = k => ans[k] !== undefined && ans[k] !== "";
+function setAns(k, v) { ans[k] = v; localStorage.setItem(ansKey, JSON.stringify(ans)); }
+function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: "timeout – אין חיבור ל-Firebase" }), ms))]); }
+function persist(k) { return hasAns(k) ? withTimeout(answersRef.child("q" + k).child(uid).set(ans[k]), 6000) : Promise.resolve(); }
+function status(msg, bad) { const s = document.getElementById("st"); if (s) { s.textContent = msg; s.className = "st" + (bad ? " bad" : ""); } }
+function saveBg(k) { status("שומר..."); persist(k).then(() => status("✓ נשמר"), e => status("⚠ לא נשמר (" + e.code + ") – נסו שוב", true)); }
 
-function save(k, val) {
-  return answersRef.child("q" + k).child(uid).set(val).then(() => {
-    done[k] = 1; localStorage.setItem(doneKey, JSON.stringify(done));
-  });
-}
-function next(k, val, btn) {
-  if (btn) btn.classList.add("sel");
-  save(k, val).then(() => setTimeout(() => { i = k + 1; render(); }, 250))
-    .catch(e => { const x = document.querySelector(".err"); x.style.display = "block"; x.textContent = "השליחה נכשלה, נסו שוב (" + e.code + ")"; });
-}
 function render() {
   app.innerHTML = "";
-  if (i >= QUESTIONS.length) { app.append(el("div", { className: "done" }, el("b", { textContent: "🎉" }), el("h1", { textContent: "תודה! התשובות שלכם נקלטו" }), el("div", { className: "cnt", textContent: "עכשיו תסתכלו על הלוח" }))); return; }
-  const q = QUESTIONS[i];
+  if (finished) { app.append(el("div", { className: "done" }, el("b", { textContent: "🎉" }), el("h1", { textContent: "תודה! התשובות שלכם נקלטו" }), el("div", { className: "cnt", textContent: "עכשיו תסתכלו על הלוח" }), el("button", { className: "opt", textContent: "חזרה לעריכת תשובות", onclick: () => { finished = false; localStorage.removeItem("pollFinished_" + SESSION); i = 0; render(); } }))); return; }
+  const q = QUESTIONS[i], last = i === QUESTIONS.length - 1;
   app.append(el("div", { className: "cnt", textContent: "שאלה " + (i + 1) + " מתוך " + QUESTIONS.length }),
-    el("div", { className: "bar" }, el("i", { style: "width:" + (i / QUESTIONS.length * 100) + "%" })),
+    el("div", { className: "bar" }, el("i", { style: "width:" + ((i + 1) / QUESTIONS.length * 100) + "%" })),
     el("h1", { textContent: q.text }));
-  if (q.type === "choice") q.options.forEach((o, k) => { const b = el("button", { className: "opt", textContent: o }); b.onclick = () => next(i, k, b); app.append(b); });
-  else if (q.type === "rating") {
+  const next = el("button", { className: "next", textContent: last ? "סיום ✔" : "הבא ←", disabled: q.type !== "text" && !hasAns(i) });
+  if (q.type === "choice") {
+    const btns = q.options.map((o, k) => { const b = el("button", { className: "opt" + (ans[i] === k ? " sel" : ""), textContent: o }); b.onclick = () => { setAns(i, k); btns.forEach((x, j) => x.classList.toggle("sel", j === k)); next.disabled = false; saveBg(i); }; return b; });
+    app.append(...btns);
+  } else if (q.type === "rating") {
     const r = el("div", { className: "rates" });
-    [1, 2, 3, 4, 5].forEach(n => { const b = el("button", { textContent: n }); b.onclick = () => next(i, n, b); r.append(b); });
+    const btns = [1, 2, 3, 4, 5].map(n => { const b = el("button", { className: ans[i] === n ? "sel" : "", textContent: n }); b.onclick = () => { setAns(i, n); btns.forEach((x, j) => x.classList.toggle("sel", j + 1 === n)); next.disabled = false; saveBg(i); }; return b; });
+    r.append(...btns);
     app.append(r, el("div", { className: "lbl" }, el("span", { textContent: "1 = " + q.low }), el("span", { textContent: "5 = " + q.high })));
   } else {
-    const t = el("textarea", { rows: 3, maxLength: 60, placeholder: "כתבו כאן (עד 60 תווים)" });
-    const go = el("button", { className: "go", textContent: "שליחה" });
-    go.onclick = () => { const v = t.value.trim(); if (v) next(i, v, go); };
-    const sk = el("button", { className: "go skip", textContent: "דלגו" });
-    sk.onclick = () => { done[i] = 1; localStorage.setItem(doneKey, JSON.stringify(done)); i++; render(); };
-    app.append(t, go, sk);
+    const t = el("textarea", { rows: 3, maxLength: 60, placeholder: "כתבו כאן (עד 60 תווים) – אפשר גם לדלג", value: ans[i] || "" });
+    let tm; const qi = i; t.oninput = () => { setAns(qi, t.value.trim()); clearTimeout(tm); tm = setTimeout(() => saveBg(qi), 700); };
+    app.append(t);
   }
-  app.append(el("div", { className: "err" }));
+  app.append(el("div", { id: "st", className: "st" }));
+  const prev = el("button", { className: "prev", textContent: "→ הקודם", disabled: i === 0 });
+  prev.onclick = () => { if (q.type === "text") saveBg(i); i--; render(); };
+  next.onclick = () => { if (q.type === "text") persist(i).catch(() => {}); if (last) finish(); else { i++; render(); } };
+  app.append(el("div", { className: "nav" }, prev, next));
+}
+function finish() {
+  app.innerHTML = ""; app.append(el("div", { className: "done" }, el("h1", { textContent: "שולחים את התשובות..." })));
+  Promise.all(QUESTIONS.map((_, k) => persist(k))).then(() => {
+    finished = true; localStorage.setItem("pollFinished_" + SESSION, "1"); render();
+  }, e => {
+    app.innerHTML = ""; app.append(el("div", { className: "done" }, el("h1", { textContent: "⚠ השליחה נכשלה" }), el("div", { className: "st bad", textContent: "סיבה: " + (e.code || e.message) }),
+      el("button", { className: "opt", textContent: "נסו שוב", onclick: finish }), el("button", { className: "opt", textContent: "חזרה לשאלות", onclick: () => { i = 0; render(); } })));
+  });
 }
 render();
 </script></body></html>

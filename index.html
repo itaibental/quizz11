@@ -4,13 +4,27 @@
 <title>סקר: מדעים, AI ומקצועות המחר</title>
 <style>
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,"Segoe UI",Arial,sans-serif;background:radial-gradient(circle at 20% 0,#1d2a6b,#0a0f26 60%);color:#fff;padding:20px}
-.card{width:100%;max-width:440px;text-align:center}
-h1{font-size:28px;line-height:1.35;margin:0 0 8px}p{color:#9aa6d6;margin:0 0 28px}
-a.btn{display:block;text-decoration:none;font-size:20px;font-weight:700;padding:18px;border-radius:16px;margin:12px 0;color:#06122e;background:#4cc9f0}
-a.btn.alt{background:#1b2552;color:#fff;border:2px solid #3a4890;font-weight:500;font-size:16px;padding:12px}
+.card{width:100%;max-width:560px;text-align:center}
+h1{font-size:clamp(24px,4vw,34px);line-height:1.35;margin:0 0 8px}p{color:#9aa6d6;margin:0 0 20px}
+#qr{display:inline-block;background:#fff;padding:18px;border-radius:22px;line-height:0}
+#qr img,#qr canvas{width:min(70vw,60vh,420px)!important;height:min(70vw,60vh,420px)!important}
+.scan{font-size:clamp(18px,3vw,24px);font-weight:700;margin:16px 0 4px}
+.link{direction:ltr;color:#4cc9f0;font-size:15px;word-break:break-all}
+.btns{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+a.btn{text-decoration:none;font-size:16px;font-weight:700;padding:12px 20px;border-radius:14px;color:#06122e;background:#4cc9f0}
+a.btn.alt{background:#1b2552;color:#fff;border:2px solid #3a4890;font-weight:500}
 </style></head><body><div class="card">
 <h1>🧪 סקר: מדעים, AI ומקצועות המחר</h1>
 <p>12 שאלות קצרות ואנונימיות, בלי תשובות נכונות או לא נכונות</p>
-<a class="btn" href="student.html">אני תלמיד/ה – להתחיל בסקר</a>
-<a class="btn alt" href="screen.html">מסך מקרן (למורה)</a>
-</div></body></html>
+<div id="qr"></div>
+<div class="scan">סרקו את הקוד כדי להתחיל</div>
+<div class="link" id="link"></div>
+<div class="btns"><a class="btn" href="student.html">אני תלמיד/ה</a><a class="btn alt" href="screen.html">מסך מקרן (למורה)</a></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+const url = new URL("student.html", location.href).href;
+document.getElementById("link").textContent = url.replace(/^https?:\/\//, "");
+try { new QRCode(document.getElementById("qr"), { text: url, width: 420, height: 420, correctLevel: QRCode.CorrectLevel.M }); }
+catch (e) { document.getElementById("qr").style.display = "none"; }
+</script></body></html>

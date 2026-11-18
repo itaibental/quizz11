@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>סקר: מדעים, AI ומקצועות המחר</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,"Segoe UI",Arial,sans-serif;background:#0f1630;color:#fff;min-height:100vh;display:flex;justify-content:center}
+.wrap{width:100%;max-width:560px;padding:20px 16px 40px}
+.bar{height:6px;background:#26305a;border-radius:9px;overflow:hidden;margin:6px 0 4px}.bar i{display:block;height:100%;background:linear-gradient(90deg,#4cc9f0,#b388ff);transition:width .3s}
+.cnt{font-size:13px;color:#9aa6d6}h1{font-size:22px;line-height:1.4;margin:22px 0}
+button.opt{display:block;width:100%;text-align:right;font:inherit;font-size:17px;color:#fff;background:#1b2552;border:2px solid #2d3a74;border-radius:14px;padding:15px;margin:10px 0;cursor:pointer}
+button.opt:active,button.opt.sel{background:#3b4bb0;border-color:#8fa2ff}
+.rates{display:flex;gap:8px;direction:ltr}.rates button{flex:1;font:inherit;font-size:26px;font-weight:700;color:#fff;background:#1b2552;border:2px solid #2d3a74;border-radius:14px;padding:18px 0;cursor:pointer}
+.rates button.sel,.rates button:active{background:#3b4bb0;border-color:#8fa2ff}
+.lbl{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#9aa6d6;margin-top:10px}.lbl span{max-width:48%}
+textarea{width:100%;font:inherit;font-size:18px;padding:14px;border-radius:14px;border:2px solid #2d3a74;background:#1b2552;color:#fff;resize:none}
+.go{margin-top:12px;width:100%;font:inherit;font-size:18px;font-weight:700;padding:14px;border:0;border-radius:14px;background:#4cc9f0;color:#06122e;cursor:pointer}
+.skip{background:none;color:#9aa6d6;font-weight:400;font-size:15px}
+.done{text-align:center;margin-top:80px}.done b{font-size:60px;display:block}
+.err{background:#6b1d2b;padding:10px;border-radius:10px;margin-top:12px;display:none}
+</style></head><body><div class="wrap" id="app"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="config.js"></script><script src="questions.js"></script>
+<script>
+let uid = localStorage.getItem("pollUid_" + SESSION);
+if (!uid) { uid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/[.#$\[\]\/]/g, ""); localStorage.setItem("pollUid_" + SESSION, uid); }
+const doneKey = "pollDone_" + SESSION;
+let done = JSON.parse(localStorage.getItem(doneKey) || "{}");
+let i = QUESTIONS.findIndex((_, k) => !(k in done)); if (i < 0) i = QUESTIONS.length;
+const app = document.getElementById("app");
+const el = (t, p = {}, ...c) => { const e = document.createElement(t); Object.assign(e, p); c.forEach(x => e.append(x)); return e; };
+
+function save(k, val) {
+  return answersRef.child("q" + k).child(uid).set(val).then(() => {
+    done[k] = 1; localStorage.setItem(doneKey, JSON.stringify(done));
+  });
+}
+function next(k, val, btn) {
+  if (btn) btn.classList.add("sel");
+  save(k, val).then(() => setTimeout(() => { i = k + 1; render(); }, 250))
+    .catch(e => { const x = document.querySelector(".err"); x.style.display = "block"; x.textContent = "השליחה נכשלה, נסו שוב (" + e.code + ")"; });
+}
+function render() {
+  app.innerHTML = "";
+  if (i >= QUESTIONS.length) { app.append(el("div", { className: "done" }, el("b", { textContent: "🎉" }), el("h1", { textContent: "תודה! התשובות שלכם נקלטו" }), el("div", { className: "cnt", textContent: "עכשיו תסתכלו על הלוח" }))); return; }
+  const q = QUESTIONS[i];
+  app.append(el("div", { className: "cnt", textContent: "שאלה " + (i + 1) + " מתוך " + QUESTIONS.length }),
+    el("div", { className: "bar" }, el("i", { style: "width:" + (i / QUESTIONS.length * 100) + "%" })),
+    el("h1", { textContent: q.text }));
+  if (q.type === "choice") q.options.forEach((o, k) => { const b = el("button", { className: "opt", textContent: o }); b.onclick = () => next(i, k, b); app.append(b); });
+  else if (q.type === "rating") {
+    const r = el("div", { className: "rates" });
+    [1, 2, 3, 4, 5].forEach(n => { const b = el("button", { textContent: n }); b.onclick = () => next(i, n, b); r.append(b); });
+    app.append(r, el("div", { className: "lbl" }, el("span", { textContent: "1 = " + q.low }), el("span", { textContent: "5 = " + q.high })));
+  } else {
+    const t = el("textarea", { rows: 3, maxLength: 60, placeholder: "כתבו כאן (עד 60 תווים)" });
+    const go = el("button", { className: "go", textContent: "שליחה" });
+    go.onclick = () => { const v = t.value.trim(); if (v) next(i, v, go); };
+    const sk = el("button", { className: "go skip", textContent: "דלגו" });
+    sk.onclick = () => { done[i] = 1; localStorage.setItem(doneKey, JSON.stringify(done)); i++; render(); };
+    app.append(t, go, sk);
+  }
+  app.append(el("div", { className: "err" }));
+}
+render();
+</script></body></html>

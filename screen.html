@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>תצוגת מקרן – סקר חי</title>
+<style>
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{font-family:system-ui,"Segoe UI",Arial,sans-serif;background:radial-gradient(circle at 20% 0,#1d2a6b,#0a0f26 60%);color:#fff;display:flex;flex-direction:column;padding:2vh 4vw;overflow:hidden}
+.top{display:flex;justify-content:space-between;align-items:center;color:#9aa6d6;font-size:2vh}
+.top b{color:#4cc9f0;font-size:3vh}
+h1{font-size:4.4vh;line-height:1.35;margin:2vh 0}
+#chart{flex:1;display:flex;flex-direction:column;justify-content:center;gap:1.6vh;min-height:0}
+.row{display:grid;grid-template-columns:34% 1fr 9%;align-items:center;gap:1.5vw;font-size:2.8vh}
+.track{background:#1a2350;border-radius:1.4vh;height:5.4vh;overflow:hidden}
+.fill{height:100%;width:0;border-radius:1.4vh;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.num{font-weight:800;font-size:3.2vh;text-align:left}
+.avg{text-align:center;font-size:3vh;color:#9aa6d6}.avg b{display:block;font-size:12vh;color:#4cc9f0;line-height:1}
+.rate .row{grid-template-columns:5% 1fr 9%}
+.cloud{display:flex;flex-wrap:wrap;gap:1.4vh 1.6vw;align-content:center;justify-content:center;overflow:hidden;height:100%}
+.chip{background:#26348a;border-radius:3vh;padding:.8vh 1.8vw;animation:pop .4s}@keyframes pop{from{transform:scale(.4);opacity:0}}
+.nav{display:flex;justify-content:space-between;align-items:center;gap:2vw;padding-top:1vh}
+.nav button{font:inherit;font-size:2.2vh;color:#fff;background:#1b2552;border:1px solid #3a4890;border-radius:1.2vh;padding:1vh 2vw;cursor:pointer}
+.dots{display:flex;gap:.6vw}.dots i{width:1.4vh;height:1.4vh;border-radius:50%;background:#2d3a74;cursor:pointer}.dots i.on{background:#4cc9f0}
+#qr{background:#fff;padding:.8vh;border-radius:1vh;display:none}
+.joinbox{display:flex;align-items:center;gap:1vw}
+</style></head><body>
+<div class="top"><div>סקר: מדעים, AI ומקצועות המחר</div>
+ <div class="joinbox"><div id="url"></div><div id="qr"></div></div>
+ <div>ענו עד כה: <b id="n">0</b></div></div>
+<h1 id="q"></h1><div id="chart"></div>
+<div class="nav"><button onclick="go(1)">→ הבאה</button><div class="dots" id="dots"></div><button onclick="go(-1)">הקודמת ←</button></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script><script src="questions.js"></script>
+<script>
+const COLORS = ["#4cc9f0", "#b388ff", "#ff7aa2", "#ffd166", "#6ee7b7"];
+let cur = +(location.hash.slice(1) || 0), data = {};
+const $ = id => document.getElementById(id);
+const dots = $("dots");
+QUESTIONS.forEach((_, k) => { const d = document.createElement("i"); d.onclick = () => { cur = k; draw(); }; dots.append(d); });
+function go(d) { cur = Math.max(0, Math.min(QUESTIONS.length - 1, cur + d)); draw(); }
+document.addEventListener("keydown", e => { if (e.key === "ArrowLeft" || e.key === "PageDown" || e.key === " ") go(1); if (e.key === "ArrowRight" || e.key === "PageUp") go(-1); });
+
+// QR + link for students
+const sUrl = location.href.replace(/screen\.html.*$/, "student.html");
+$("url").textContent = "הצטרפו: " + sUrl.replace(/^https?:\/\//, "");
+try { $("qr").style.display = "block"; new QRCode($("qr"), { text: sUrl, width: 90, height: 90 }); } catch (e) {}
+
+function draw() {
+  location.hash = cur;
+  [...dots.children].forEach((d, k) => d.className = k === cur ? "on" : "");
+  const q = QUESTIONS[cur], vals = Object.values(data["q" + cur] || {});
+  $("q").textContent = (cur + 1) + ". " + q.text; $("n").textContent = vals.length;
+  const c = $("chart"); const old = c.dataset.k; c.dataset.k = cur;
+  if (q.type === "choice") {
+    const counts = q.options.map((_, k) => vals.filter(v => v === k).length), max = Math.max(1, ...counts), tot = vals.length || 1;
+    bars(c, old, q.options, counts, max, tot, k => COLORS[k % 5]);
+  } else if (q.type === "rating") {
+    const counts = [1, 2, 3, 4, 5].map(n => vals.filter(v => v === n).length), max = Math.max(1, ...counts);
+    const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : "–";
+    if (!c.querySelector(".rate") || old != cur) { c.innerHTML = '<div class="avg"><b id="avg"></b>ממוצע (1–5) · 1 = ' + esc(q.low) + ' · 5 = ' + esc(q.high) + '</div><div class="rate" id="rb"></div>'; }
+    $("avg").textContent = avg;
+    bars($("rb"), old, ["1", "2", "3", "4", "5"], counts, max, vals.length || 1, k => COLORS[k]);
+  } else {
+    const m = {}; vals.forEach(v => { const k = String(v).trim().toLowerCase(); (m[k] = m[k] || { t: String(v).trim(), n: 0 }).n++; });
+    const items = Object.values(m).sort((a, b) => b.n - a.n);
+    c.innerHTML = ""; const cl = document.createElement("div"); cl.className = "cloud";
+    items.forEach((it, k) => { const s = document.createElement("span"); s.className = "chip"; s.textContent = it.t + (it.n > 1 ? " ×" + it.n : ""); s.style.fontSize = (2.6 + Math.min(it.n - 1, 5) * .9) + "vh"; cl.append(s); });
+    c.append(cl);
+  }
+}
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+function bars(box, oldKey, labels, counts, max, tot, color) {
+  if (box.children.length !== labels.length || (box.dataset.k !== String(cur))) {
+    box.dataset.k = cur; box.innerHTML = "";
+    labels.forEach((l, k) => { const r = document.createElement("div"); r.className = "row"; r.innerHTML = '<div></div><div class="track"><div class="fill"></div></div><div class="num"></div>'; r.children[0].textContent = l; r.querySelector(".fill").style.background = color(k); box.append(r); });
+    box.getBoundingClientRect(); // reflow so the animation starts from 0
+  }
+  [...box.children].forEach((r, k) => {
+    r.querySelector(".fill").style.width = (counts[k] / max * 100) + "%";
+    r.querySelector(".num").textContent = counts[k] + (tot > 1 || counts[k] ? " · " + Math.round(counts[k] / tot * 100) + "%" : "");
+  });
+}
+answersRef.on("value", s => { data = s.val() || {}; draw(); }, e => { $("q").textContent = "שגיאת חיבור ל-Firebase: " + e.message; });
+draw();
+</script></body></html>

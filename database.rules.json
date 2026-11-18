@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "sessions": {
+      "$session": {
+        "responses": {
+          ".read": true,
+          "$q": {
+            "$uid": {
+              ".write": "!data.exists()",
+              ".validate": "(newData.isNumber() && newData.val() >= 0 && newData.val() <= 5) || (newData.isString() && newData.val().length <= 60)"
+            }
+          }
+        }
+      }
+    }
+  }
+}

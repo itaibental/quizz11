@@ -4,7 +4,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyCfg0Ryw5MgaQqM7jHFrDZ3nc2yIzLen6Y",
   authDomain: "quiz11-6226a.firebaseapp.com",
-  databaseURL: "https://quiz11-6226a-default-rtdb.firebaseio.com",
+  databaseURL: "https://quiz11-6226a-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "quiz11-6226a",
   storageBucket: "quiz11-6226a.firebasestorage.app",
   messagingSenderId: "240507006205",

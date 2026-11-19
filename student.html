@@ -19,7 +19,9 @@ textarea{width:100%;font:inherit;font-size:18px;padding:14px;border-radius:14px;
 .nav button:disabled{opacity:.35;cursor:not-allowed}
 .st{min-height:20px;font-size:13px;margin-top:10px;color:#9aa6d6}.st.bad{color:#ff8a9b}
 .done{text-align:center;margin-top:80px}.done b{font-size:60px;display:block}
-</style></head><body><div class="wrap" id="app"></div>
+.logo{display:block;margin:0 auto;filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px rgba(255,255,255,.9))}
+.logo{width:200px;margin:4px auto 8px}
+</style></head><body><div class="wrap"><img class="logo" src="logo.png" alt="אורט – שחקים"><div id="app"></div></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="config.js"></script><script src="questions.js"></script>
@@ -33,7 +35,7 @@ const app = document.getElementById("app");
 const el = (t, p = {}, ...c) => { const e = document.createElement(t); Object.assign(e, p); c.forEach(x => e.append(x)); return e; };
 const hasAns = k => ans[k] !== undefined && ans[k] !== "";
 function setAns(k, v) { ans[k] = v; localStorage.setItem(ansKey, JSON.stringify(ans)); }
-function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: "timeout – אין חיבור ל-Firebase" }), ms))]); }
+function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: "timeout – אין חיבור ל-" + firebaseConfig.databaseURL }), ms))]); }
 function persist(k) { return hasAns(k) ? withTimeout(answersRef.child("q" + k).child(uid).set(ans[k]), 6000) : Promise.resolve(); }
 function status(msg, bad) { const s = document.getElementById("st"); if (s) { s.textContent = msg; s.className = "st" + (bad ? " bad" : ""); } }
 function saveBg(k) { status("שומר..."); persist(k).then(() => status("✓ נשמר"), e => status("⚠ לא נשמר (" + e.code + ") – נסו שוב", true)); }
